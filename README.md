@@ -76,8 +76,16 @@ for base_addr, size in regions:
     data, num_bytes_read, num_expected_bytes = reader.read_physical_memory(physical_address, PhysAccessMode.PHYS_BUFFER_READ, 0x1337)
 ```
 
-## 🧭 Available class functions
+## 🧭 Available class properties and functions
 ```python
+reader = LinPyMem(...)
+reader.pid
+reader.process_vm_start_addr
+reader.process_vm_end_addr
+reader.process_vm_size
+reader.pathname_vm_regions # only set when vm_pathname is provided in constuctor
+reader.cr3
+
 # optional driver setup/teardown helpers
 def insert_kernel_module(self, module_path: str):
 def get_driver_major_number(self, driver_name: str) -> int:
