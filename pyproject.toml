@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=64", "wheel"]
+requires = ["setuptools<69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -10,7 +10,7 @@ authors = [
     { name="gionetti", email="its.only.a.matter.of.time.000@gmail.com" }
 ]
 readme = "README.md"
-license = { file = "LICENSE" }
+license = { text = "MIT" }
 dependencies = ["psutil"]
 requires-python = ">=3.7"
 
@@ -18,4 +18,4 @@ requires-python = ">=3.7"
 Homepage = "https://github.com/gionetti/linpymem"
 
 [tool.setuptools.packages.find]
-where = ["linpymem"]
+where = ["."]
