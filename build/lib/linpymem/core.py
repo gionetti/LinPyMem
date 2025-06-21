@@ -76,13 +76,12 @@ class LinPyMem:
             RuntimeError: If CR3 or virtual memory bounds cannot be determined.
         """
         self.ko_module_path = ko_module_path
-
         self.device_path = device_path
         self.process_name = process_name
         self.pid = pid if pid is not None else self.get_pid_by_process_name(self.process_name)
         self.vm_pathname = vm_pathname
 
-        start_addr, end_addr, memory_size = self.get_process_virtual_memory_bounds(self.pid, self.process_name)
+        start_addr, end_addr, memory_size = self.get_process_virtual_memory_bounds(self.pid)
         self.process_vm_start_addr = start_addr
         self.process_vm_end_addr = end_addr
         self.process_vm_size = memory_size
@@ -90,13 +89,14 @@ class LinPyMem:
         if self.vm_pathname:
             self.pathname_vm_regions = self.get_pathname_virtual_address_range(self.pid, self.vm_pathname)
 
-        if self.ko_module_path:
-            self.setup_driver(self.ko_module_path, self.device_path)
         self.cr3 = self.get_cr3_for_process(self.pid)
 
     def __enter__(self):
         """
-        Enters the context manager
+        Enters the context manager and optionally loads the kernel driver module.
+
+        If a `ko_module_path` was specified during initialization, this method
+        will attempt to load the kernel module and create the device node.
 
         Returns:
             LinPyMem: The initialized memory reader instance.
@@ -104,6 +104,8 @@ class LinPyMem:
         Raises:
             RuntimeError: If the driver fails to load or the device path is not created.
         """
+        if self.ko_module_path:
+            self.setup_driver(self.ko_module_path, self.device_path)
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
@@ -121,7 +123,7 @@ class LinPyMem:
         Returns:
             None
         """
-        self.remove_driver(self.device_path)
+        self.remove_driver()
 
     def insert_kernel_module(self, module_path: str):
         """
@@ -129,16 +131,14 @@ class LinPyMem:
         > sudo insmod /home/workspace/Linpmem/linpmem.ko
         """
         command = ['sudo', 'insmod', module_path]
-        result = subprocess.run(command, capture_output=True, text=True)
-
-        if result.returncode == 0:
-            print(f"[linpymem] -> Kernel module '{module_path}' inserted successfully.")
-        else:
-            stderr = result.stderr.strip()
-            if "File exists" in stderr:
-                print(f"[linpymem] -> Kernel module '{module_path}' already inserted. Continuing.")
+        try:
+            subprocess.run(command, check=True)
+            print(f"Kernel module '{module_path}' inserted successfully.")
+        except subprocess.CalledProcessError as e:
+            if "File exists" in str(e):
+                print(f"Kernel module '{module_path}' already inserted. Continuing.")
             else:
-                raise Exception(f"Error inserting kernel module '{module_path}': {stderr}")
+                raise Exception(f"Error inserting kernel module '{module_path}': {e}")
 
     def get_driver_major_number(self, driver_name: str) -> int:
         """
@@ -173,7 +173,7 @@ class LinPyMem:
                 raise Exception(f"Driver '{driver_name}' not found in /proc/devices.")
 
         except Exception as e:
-            print(f"[linpymem] -> Error reading /proc/devices: {e}")
+            print(f"Error reading /proc/devices: {e}")
             return None
 
     def create_device_node(self, major_number: int, device_path: str):
@@ -182,7 +182,7 @@ class LinPyMem:
         > sudo mknod /dev/linpmem c 42 0
         """
         if os.path.exists(device_path):
-            print(f"[linpymem] -> Device node '{device_path}' already exists. Skipping creation.")
+            print(f"Device node '{device_path}' already exists. Skipping creation.")
             return
 
         character_device = 'c'
@@ -190,7 +190,7 @@ class LinPyMem:
         command = ['sudo', 'mknod', device_path, character_device, str(major_number), minor_number]
         try:
             subprocess.run(command, check=True)
-            print(f"[linpymem] -> Device node '{device_path}' created successfully.")
+            print(f"Device node '{device_path}' created successfully.")
         except subprocess.CalledProcessError as e:
             raise Exception(f"Error creating device node '{device_path}': {e}")
 
@@ -212,19 +212,19 @@ class LinPyMem:
         if os.path.exists(device_path):
             try:
                 os.remove(device_path)
-                print(f"[linpymem] -> Device node '{device_path}' removed successfully.")
+                print(f"Device node '{device_path}' removed successfully.")
             except Exception as e:
-                print(f"[linpymem] -> Error removing device node '{device_path}': {e}")
+                print(f"Error removing device node '{device_path}': {e}")
         else:
-            print(f"[linpymem] -> Device node '{device_path}' does not exist. Skipping removal.")
+            print(f"Device node '{device_path}' does not exist. Skipping removal.")
 
         try:
             driver_name = os.path.basename(device_path)
             subprocess.run(['sudo', 'rmmod', driver_name], check=True)
-            print(f"[linpymem] -> Kernel module '{driver_name}' removed successfully.")
+            print(f"Kernel module '{driver_name}' removed successfully.")
         except subprocess.CalledProcessError as e:
             if "No such file or directory" in str(e) or f"Module {driver_name} not found" in str(e):
-                print(f"[linpymem] -> Kernel module '{driver_name}' is not loaded. Skipping removal.")
+                print(f"Kernel module '{driver_name}' is not loaded. Skipping removal.")
             else:
                 raise Exception(f"Error removing kernel module '{driver_name}': {e}")
 
@@ -238,26 +238,14 @@ class LinPyMem:
             
         raise Exception(f"Process '{process_name}' not found.")
 
-    def get_process_virtual_memory_bounds(self, pid: int, pathname: str) -> tuple[int, int, int]:
-        """
-        Get the virtual memory range for a specific binary pathname in a process.
-        """
+    def get_process_virtual_memory_bounds(self, pid: int) -> tuple[int, int, int]:
+        """Get the lowest and highest virtual memory address mapped in the process as well as size."""
         try:
             with open(f'/proc/{pid}/maps', 'r') as maps_file:
-                base = None
-                end = None
-                for line in maps_file:
-                    if pathname in line:
-                        start_str, end_str = line.split(' ')[0].split('-')
-                        start = int(start_str, 16)
-                        stop = int(end_str, 16)
-                        if base is None or start < base:
-                            base = start
-                        if end is None or stop > end:
-                            end = stop
-                if base is None or end is None:
-                    raise Exception(f"Could not find memory mappings for {pathname}")
-                return base, end, end - base
+                addresses = [line.split(' ')[0].split('-') for line in maps_file]
+                low = min(int(start, 16) for start, _ in addresses)
+                high = max(int(end, 16) for _, end in addresses)
+                return (low, high, high - low)
         except FileNotFoundError:
             raise Exception(f"Process with PID {pid} not found or permission denied.")
 
@@ -620,7 +608,7 @@ class LinPyMem:
             phys, _ = self.virtual_to_physical(start_address, self.cr3)
             data, _, _ = self.read_physical_memory(phys, PhysAccessMode.PHYS_BUFFER_READ, size)
 
-            print(f"\n[linpymem] -> Memory Region from 0x{start_address:x}:")
+            print(f"Memory Region from 0x{start_address:x}:")
 
             for i in range(0, len(data), row_size):
                 address = start_address + i
@@ -629,7 +617,7 @@ class LinPyMem:
                 ascii_repr = ''.join(chr(b) if 32 <= b <= 126 else '.' for b in row_bytes)
                 print(f"0x{address:016x}: {hex_values:<48}  {ascii_repr}")
 
-            print("")
+            print("\n")
 
         except Exception as e:
-            print(f"[linpymem] -> Failed to read memory at 0x{start_address:x}: {e}")
+            print(f"Failed to read memory at 0x{start_address:x}: {e}")
