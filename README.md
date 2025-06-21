@@ -1,6 +1,6 @@
 # LinPyMem
 
-Access and read physical memory from user-space Python using a kernel-mode driver (`linpmem.ko`) and virtual-to-physical address translation with CR3 walking.
+Read physical memory from user-space using a kernel-mode driver (`linpmem.ko`) and virtual-to-physical address translation with CR3 walking.
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
