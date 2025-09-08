@@ -83,7 +83,7 @@ reader.pid
 reader.process_vm_start_addr
 reader.process_vm_end_addr
 reader.process_vm_size
-reader.pathname_vm_regions # only set when vm_pathname is provided in constuctor
+reader.pathname_vm_regions
 reader.cr3
 
 # optional driver setup/teardown helpers

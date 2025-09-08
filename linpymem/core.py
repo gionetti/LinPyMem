@@ -81,8 +81,12 @@ class LinPyMem:
         self.process_name = process_name
         self.pid = pid if pid is not None else self.get_pid_by_process_name(self.process_name)
         self.vm_pathname = vm_pathname
-
         self.pathname_vm_regions = self.get_pathname_virtual_address_range(self.pid, self.vm_pathname)
+        if self.pathname_vm_regions:
+            start, size = self.pathname_vm_regions[0]
+            self.process_vm_start_addr = start
+            self.process_vm_size = size
+            self.process_vm_end_addr = start + size
 
         if self.ko_module_path:
             self.setup_driver(self.ko_module_path, self.device_path)
