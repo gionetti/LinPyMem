@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linpymem"
-version = "0.3.0"
+version = "0.4.0"
 description = "Low-level physical memory access via Linpmem kernel driver"
 authors = [
     { name="gionetti", email="its.only.a.matter.of.time.000@gmail.com" }
