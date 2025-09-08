@@ -17,14 +17,12 @@ def test_read_known_struct():
         binary_self_reported_pid = int(proc.stdout.readline().strip().split(": ")[1])
         time.sleep(1)
 
-        with LinPyMem(ko_module_path="/home/bob/Documents/workspace/Linpmem/linpmem.ko", process_name="test_target") as reader:
+        with LinPyMem(ko_module_path="/home/bob/Documents/workspace/Linpmem/linpmem.ko", process_name="test_target", vm_pathname="test_target") as reader:
 
             pid = reader.pid
-            base = reader.process_vm_start_addr
-            end = reader.process_vm_end_addr
-            size = reader.process_vm_size
+            base, size = reader.pathname_vm_regions[0]
+            end = base + size
             cr3 = reader.cr3
-
             reader.view_memory_region(base + 0x2018, 0x40)
 
             magic = reader.read_int(base + 0x1228)

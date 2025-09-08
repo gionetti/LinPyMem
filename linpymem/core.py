@@ -54,7 +54,7 @@ class LinPyMem:
                  device_path: str = "/dev/linpmem", 
                  process_name: str = None, 
                  pid: int = None, 
-                 vm_pathname: str=None):
+                 vm_pathname: str = None):
         """
         Initializes the LinPyMem memory reader instance.
 
@@ -82,13 +82,7 @@ class LinPyMem:
         self.pid = pid if pid is not None else self.get_pid_by_process_name(self.process_name)
         self.vm_pathname = vm_pathname
 
-        start_addr, end_addr, memory_size = self.get_process_virtual_memory_bounds(self.pid, self.process_name)
-        self.process_vm_start_addr = start_addr
-        self.process_vm_end_addr = end_addr
-        self.process_vm_size = memory_size
-
-        if self.vm_pathname:
-            self.pathname_vm_regions = self.get_pathname_virtual_address_range(self.pid, self.vm_pathname)
+        self.pathname_vm_regions = self.get_pathname_virtual_address_range(self.pid, self.vm_pathname)
 
         if self.ko_module_path:
             self.setup_driver(self.ko_module_path, self.device_path)
@@ -238,29 +232,6 @@ class LinPyMem:
             
         raise Exception(f"Process '{process_name}' not found.")
 
-    def get_process_virtual_memory_bounds(self, pid: int, pathname: str) -> tuple[int, int, int]:
-        """
-        Get the virtual memory range for a specific binary pathname in a process.
-        """
-        try:
-            with open(f'/proc/{pid}/maps', 'r') as maps_file:
-                base = None
-                end = None
-                for line in maps_file:
-                    if pathname in line:
-                        start_str, end_str = line.split(' ')[0].split('-')
-                        start = int(start_str, 16)
-                        stop = int(end_str, 16)
-                        if base is None or start < base:
-                            base = start
-                        if end is None or stop > end:
-                            end = stop
-                if base is None or end is None:
-                    raise Exception(f"Could not find memory mappings for {pathname}")
-                return base, end, end - base
-        except FileNotFoundError:
-            raise Exception(f"Process with PID {pid} not found or permission denied.")
-
     def get_pathname_virtual_address_range(self, pid: int, pathname: str) -> list[tuple[int, int]]:
         """
         Extracts the virtual memory regions associated with a given pathname from a process's memory map.
@@ -296,9 +267,9 @@ class LinPyMem:
                     if pathname in line and base_address == 0:
                         base_address = int(address_range[0], 16)
                         end_address = int(address_range[1], 16)
-                    elif (pathname in line or '/' not in line) and base_address != 0:
+                    elif pathname in line and base_address != 0:
                         end_address = int(address_range[1], 16) 
-                    elif '/' in line and base_address != 0:
+                    elif pathname not in line and base_address != 0:
                         pathname_regions.append((base_address, end_address-base_address))
                         base_address = 0
                         end_address = 0
