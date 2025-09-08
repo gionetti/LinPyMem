@@ -271,9 +271,9 @@ class LinPyMem:
                     if pathname in line and base_address == 0:
                         base_address = int(address_range[0], 16)
                         end_address = int(address_range[1], 16)
-                    elif pathname in line and base_address != 0:
+                    elif (pathname in line or ('/' not in line and "[" not in line)) and base_address != 0:
                         end_address = int(address_range[1], 16) 
-                    elif pathname not in line and base_address != 0:
+                    elif ()'/' in line or "[" in line) and base_address != 0:
                         pathname_regions.append((base_address, end_address-base_address))
                         base_address = 0
                         end_address = 0
