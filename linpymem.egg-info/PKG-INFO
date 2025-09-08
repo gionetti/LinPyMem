@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: linpymem
-Version: 0.2.0
+Version: 0.3.0
 Summary: Low-level physical memory access via Linpmem kernel driver
 Author-email: gionetti <its.only.a.matter.of.time.000@gmail.com>
 License: MIT
